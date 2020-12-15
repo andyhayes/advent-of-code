@@ -41,8 +41,8 @@ public class Day13 {
                 .filter(entry -> !entry.getValue().equals("x"))
                 .map(entry -> new Bus(Integer.parseInt(entry.getValue()), entry.getKey()))
                 .toList();
-        Bus firstBus = buses.get(0);
-        long earliestTimestamp = LongStreamEx.iterate(0, l -> l += firstBus.id)
+        Bus busWithHighestId = StreamEx.of(buses).max(Comparator.comparing(bus -> bus.id)).orElseThrow();
+        long earliestTimestamp = LongStreamEx.longs().map(l -> (l * busWithHighestId.id) - busWithHighestId.desiredWaitTime)
                 .findFirst(l -> StreamEx.of(buses).allMatch(bus -> bus.matchesDesiredWaitTime(l)))
                 .orElseThrow();
         log.info("Part 2: {}", earliestTimestamp);
@@ -60,7 +60,7 @@ public class Day13 {
         }
 
         private boolean matchesDesiredWaitTime(long timestamp) {
-            return (timestamp) % id == (id - desiredWaitTime);
+            return (timestamp + desiredWaitTime) % id == 0;
         }
 
         public long part1() {
