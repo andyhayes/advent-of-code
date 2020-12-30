@@ -1,20 +1,14 @@
 package com.checkraiseit.adventofcode.y2020.d23;
 
-import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import one.util.streamex.EntryStream;
 import one.util.streamex.IntStreamEx;
+import one.util.streamex.StreamEx;
 
 import java.io.IOException;
 import java.util.List;
 
-import static com.google.common.collect.Lists.newArrayList;
-
 @Log4j2
 public class Day23 {
-
-    private static int MAX_VALUE = 9;
 
     public static void main(String[] args) throws IOException {
         log.info("part 1 example: {}", labelAfterMoves("389125467", 10));
@@ -24,101 +18,71 @@ public class Day23 {
     }
 
     static String labelAfterMoves(String startingCups, int moves) {
-        MAX_VALUE = 9;
-        CupCircle cupCircle = new CupCircle(startingCups);
+        CupCircle cupCircle = new CupCircle(startingCups, 9);
         IntStreamEx.range(moves).forEach(i -> cupCircle.move());
         return cupCircle.cupsAfterCupOne();
     }
 
     static long labelAfterTenMillionMoves(String startingCups) {
-        MAX_VALUE = 1_000_000;
-        CupCircle cupCircle = new CupCircle(startingCups);
-        IntStreamEx.range(10_000_000).forEach(i -> {
-            if (i % 1000 == 0) {
-                log.info("labelAfterTenMillionMoves: {}", i);
-            }
-            cupCircle.move();
-        });
+        CupCircle cupCircle = new CupCircle(startingCups, 1_000_000);
+        IntStreamEx.range(10_000_000).forEach(i -> cupCircle.move());
         return cupCircle.productOfTwoCupsAfterCupOne();
     }
 
-    @RequiredArgsConstructor
-    @EqualsAndHashCode
-    private static class Cup {
-        private final int value;
-
-        public Cup previous() {
-            if (value == 1) {
-                return new Cup(MAX_VALUE);
-            }
-            return new Cup(value - 1);
-        }
-
-        public long multiply(Cup cup) {
-            return ((long) value) * cup.value;
-        }
-
-        @Override
-        public String toString() {
-            return String.valueOf(value);
-        }
-    }
-
     private static class CupCircle {
-        private final List<Cup> cups;
-        private int currentCupIndex = 0;
+        private final int maxValue;
+        private int current;
+        private final int[] cupValueToNext;
 
-        public CupCircle(String startingCups) {
-            cups = EntryStream.of(startingCups.split(""))
-                    .map(entry -> new Cup(Integer.parseInt(entry.getValue()))).toList();
-            IntStreamEx.rangeClosed(10, MAX_VALUE).forEach(i -> cups.add(new Cup(i)));
+        public CupCircle(String startingCups, int maxValue) {
+            this.maxValue = maxValue;
+            cupValueToNext = new int[maxValue + 1];
+            List<Integer> cups = StreamEx.of(startingCups.split("")).map(Integer::parseInt).toList();
+            for (int i = 1; i < cups.size();  i++) {
+                cupValueToNext[cups.get(i - 1)] = cups.get(i);
+            }
+            cupValueToNext[cups.get(cups.size() - 1)] = cups.get(0);
+            current = cups.get(0);
+            if (maxValue > cups.size()) {
+                cupValueToNext[cups.get(cups.size() - 1)] = cups.size() + 1;
+                IntStreamEx.range(10, maxValue).forEach(i -> cupValueToNext[i] = i + 1);
+                cupValueToNext[maxValue] = cups.get(0);
+            }
         }
 
         public void move() {
-            Cup currentCup = cups.get(currentCupIndex);
-            Cup cup1 = removeNextCup();
-            Cup cup2 = removeNextCup();
-            Cup cup3 = removeNextCup();
-            List<Cup> pickedCups = newArrayList(cup1, cup2, cup3);
-            Cup previousCup = currentCup.previous();
-            while (pickedCups.contains(previousCup)) {
-                previousCup = previousCup.previous();
-            }
-            int destinationCupIndex = Math.min(cups.indexOf(previousCup) + 1, cups.size());
-            placeCupAt(cup1, destinationCupIndex);
-            placeCupAt(cup2, Math.min(destinationCupIndex + 1, cups.size()));
-            placeCupAt(cup3, Math.min(destinationCupIndex + 2, cups.size()));
-            if (destinationCupIndex <= currentCupIndex) {
-                currentCupIndex += 3;
-            }
-            currentCupIndex = (currentCupIndex + 1) % cups.size();
-        }
+            int destination = current;
+            int next1 = cupValueToNext[current];
+            int next2 = cupValueToNext[next1];
+            int next3 = cupValueToNext[next2];
+            do {
+                destination--;
+                if (destination == 0) {
+                    destination = maxValue;
+                }
+            } while (next1 == destination || next2 == destination || next3 == destination);
 
-        private void placeCupAt(Cup cup, int index) {
-            cups.add(index, cup);
-        }
+            cupValueToNext[current] = cupValueToNext[next3];
+            cupValueToNext[next3] = cupValueToNext[destination];
+            cupValueToNext[destination] = next1;
 
-        private Cup removeNextCup() {
-            if (currentCupIndex + 1 >= cups.size()) {
-                currentCupIndex--;
-                return cups.remove(0);
-            }
-            return cups.remove(currentCupIndex + 1);
+            current = cupValueToNext[current];
         }
 
         public String cupsAfterCupOne() {
-            int cupAfterOne = (cups.indexOf(new Cup(1)) + 1) % cups.size();
             StringBuilder label = new StringBuilder();
-            for (int i = cupAfterOne; i < (cupAfterOne + cups.size() - 1); i++) {
-                label.append(cups.get(i % cups.size()));
+            int cupAfterOne = cupValueToNext[1];
+            while (cupAfterOne != 1) {
+                label.append(cupAfterOne);
+                cupAfterOne = cupValueToNext[cupAfterOne];
             }
             return label.toString();
         }
 
         public long productOfTwoCupsAfterCupOne() {
-            int cupAfterOne = (cups.indexOf(new Cup(1)) + 1) % cups.size();
-            int cupTwoAfterOne = (cupAfterOne + 1) % cups.size();
-            return cups.get(cupAfterOne).multiply(cups.get(cupTwoAfterOne));
+            int cupAfterOne = cupValueToNext[1];
+            int cupAfterAfterOne = cupValueToNext[cupAfterOne];
+            return ((long) cupAfterOne) * cupAfterAfterOne;
         }
     }
 }
