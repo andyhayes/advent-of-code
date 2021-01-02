@@ -1,17 +1,20 @@
 package com.checkraiseit.adventofcode.y2020.d13;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 import lombok.extern.log4j.Log4j2;
 import one.util.streamex.EntryStream;
-import one.util.streamex.LongStreamEx;
 import one.util.streamex.StreamEx;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 @Log4j2
 public class Day13 {
@@ -20,14 +23,14 @@ public class Day13 {
     private static final String BUS_IDS = "17,x,x,x,x,x,x,x,x,x,x,37,x,x,x,x,x,439,x,29,x,x,x,x,x,x,x,x,x,x,13,x,x,x,x,x,x,x,x,x,23,x,x,x,x,x,x,x,787,x,x,x,x,x,x,x,x,x,41,x,x,x,x,x,x,x,x,19";
 
     public static void main(String[] args) throws IOException {
-        part1();
-        part2("17,x,13,19");
-        part2("1789,37,47,1889");
-        part2(BUS_IDS);
+        part1(BUS_IDS);
+        log.info("Part 2 example 1: {}", part2("17,x,13,19"));
+        log.info("Part 2 example 2: {}", part2("1789,37,47,1889"));
+        log.info("Part 2: {}", part2(BUS_IDS));
     }
 
-    private static void part1() {
-        Bus firstBus = Arrays.stream(BUS_IDS.split(","))
+    private static void part1(String busIds) {
+        Bus firstBus = Arrays.stream(busIds.split(","))
                 .filter(id -> !id.equals("x"))
                 .map(Integer::parseInt)
                 .map(Bus::new)
@@ -36,22 +39,43 @@ public class Day13 {
         log.info("Part 1: {}", firstBus.part1());
     }
 
-    private static void part2(String busIds) {
+    private static long part2(String busIds) {
         List<Bus> buses = EntryStream.of(busIds.split(","))
                 .filter(entry -> !entry.getValue().equals("x"))
                 .map(entry -> new Bus(Integer.parseInt(entry.getValue()), entry.getKey()))
+                .sorted(Comparator.comparingInt(Bus::getId).reversed())
                 .toList();
-        Bus busWithHighestId = StreamEx.of(buses).max(Comparator.comparing(bus -> bus.id)).orElseThrow();
-        long earliestTimestamp = LongStreamEx.longs().map(l -> (l * busWithHighestId.id) - busWithHighestId.desiredWaitTime)
-                .findFirst(l -> StreamEx.of(buses).allMatch(bus -> bus.matchesDesiredWaitTime(l)))
-                .orElseThrow();
-        log.info("Part 2: {}", earliestTimestamp);
+
+        List<Bus> busesToMatch = newArrayList(buses.get(0));
+        Bus busWithHighestId = buses.get(0);
+        Function<Long, Long> increment = l -> (l * busWithHighestId.id) - busWithHighestId.desiredWaitTime;
+        for (long l = 1; true; l++) {
+            long nextTimestamp = increment.apply(l);
+            if (allMatchDesiredWaitTime(busesToMatch, nextTimestamp)) {
+                if (busesToMatch.size() == buses.size()) {
+                    return nextTimestamp;
+                }
+                long productOfMatchedBusIds = productOfBusIds(busesToMatch);
+                increment = l1 -> nextTimestamp + (l1 * productOfMatchedBusIds);
+                l = 0;
+                busesToMatch.add(buses.get(busesToMatch.size()));
+            }
+        }
+    }
+
+    private static boolean allMatchDesiredWaitTime(List<Bus> buses, long timestamp) {
+        return StreamEx.of(buses).allMatch(bus -> bus.matchesDesiredWaitTime(timestamp));
+    }
+
+    private static long productOfBusIds(List<Bus> busesToMatch) {
+        return StreamEx.of(busesToMatch).mapToLong(Bus::getId).reduce(1, (a, b) -> a * b);
     }
 
     @RequiredArgsConstructor
     @AllArgsConstructor
     @ToString
     private static class Bus {
+        @Getter
         private final int id;
         private int desiredWaitTime;
 
