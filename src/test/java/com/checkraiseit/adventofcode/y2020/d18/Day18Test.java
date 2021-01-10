@@ -61,6 +61,7 @@ public class Day18Test {
     public void crazyBrackets2() {
         assertThat(Day18.evaluate("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2"), is(13632L));
     }
+
     @Test
     public void crazyBrackets3() {
         assertThat(Day18.evaluate("9 * 4 + 2 * 7 * (5 * (4 * 5 * 6) * 3 * 4 + 4) * (4 + 4)"), is(15330112L));
